@@ -20,7 +20,7 @@ MemoryAddresses = {}
 MemoryAddresses.NDS_CONSTANTS = {
     CARTRIDGE_HEADER = 0x3FFE00
 }
- -- 0x27C220
+
 MemoryAddresses[GameInfo.VERSION_NUMBER.HEART_GOLD] = {
     GLOBAL_POINTER = 0xBA8,
     VERSION_POINTER_OFFSET = 0x20,
@@ -116,7 +116,7 @@ MemoryAddresses[GameInfo.VERSION_NUMBER.PLATINUM] = {
 		curHPBattlePlayer = 0x47604,
 		animCycleCounter = 0x479C0,
 		moveCrit = 0x469C8,
-		multiturnMoveState = 0x0, ---------------------------------------------------
+		multiturnMoveState = 0x476E8,
         enemyPokemonID = 0x47678,
         berryBagStart = 0xC00,
         berryBagStartBattle = 0x4435C,
@@ -126,11 +126,11 @@ MemoryAddresses[GameInfo.VERSION_NUMBER.PLATINUM] = {
         battleSubscriptMsgs = 0x44928
     },
     GLOBAL = {
-        battleStatus = 0x24A55A,
+        battleStatus = 0x24A55A
     }
 }
 
-MemoryAddresses[GameInfo.VERSION_NUMBER.DIAMOND] = { -- direct memoryaddr multiturn: 2B5944
+MemoryAddresses[GameInfo.VERSION_NUMBER.DIAMOND] = {
     GLOBAL_POINTER = 0xB70,
     VERSION_POINTER_OFFSET = 0x20,
     VERSION_POINTER_OFFSETS = {
@@ -150,7 +150,7 @@ MemoryAddresses[GameInfo.VERSION_NUMBER.DIAMOND] = { -- direct memoryaddr multit
 		curHPBattlePlayer = 0x485CC,
 		animCycleCounter = 0x48988,
 		moveCrit = 0x47990,
-		multiturnMoveState = 0x0, ---------------------------------------------------
+		multiturnMoveState = 0x486B0,
         enemyPokemonID = 0x48640,
         berryBagStart = 0xDF4,
         berryBagStartBattle = 0x4550C,
@@ -160,11 +160,11 @@ MemoryAddresses[GameInfo.VERSION_NUMBER.DIAMOND] = { -- direct memoryaddr multit
         battleSubscriptMsgs = 0x458F0
     },
     GLOBAL = {
-        battleStatus = 0x23BB38,
+        battleStatus = 0x23BB38
     }
 }
 
-MemoryAddresses[GameInfo.VERSION_NUMBER.PEARL] = { -- direct memoryaddr multiturn: 2B5944
+MemoryAddresses[GameInfo.VERSION_NUMBER.PEARL] = {
     GLOBAL_POINTER = 0xB70,
     VERSION_POINTER_OFFSET = 0x20,
     VERSION_POINTER_OFFSETS = {
@@ -184,7 +184,7 @@ MemoryAddresses[GameInfo.VERSION_NUMBER.PEARL] = { -- direct memoryaddr multitur
 		curHPBattlePlayer = 0x485CC,
 		animCycleCounter = 0x48988,
 		moveCrit = 0x47990,
-		multiturnMoveState = 0x0, ---------------------------------------------------
+		multiturnMoveState = 0x486B0,
         enemyPokemonID = 0x48640,
         berryBagStart = 0xDF4,
         berryBagStartBattle = 0x4550C,
@@ -194,7 +194,7 @@ MemoryAddresses[GameInfo.VERSION_NUMBER.PEARL] = { -- direct memoryaddr multitur
         battleSubscriptMsgs = 0x458F0
     },
     GLOBAL = {
-        battleStatus = 0x23BB38,
+        battleStatus = 0x23BB38
     }
 }
 
