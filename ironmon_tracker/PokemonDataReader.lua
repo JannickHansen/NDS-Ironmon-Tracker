@@ -313,6 +313,61 @@ local function PokemonDataReader(initialProgram)
         return decryptedData
     end
 
+	function self.readPPFromBase(pokemonBase)
+    local pid = Memory.read_u32_le(pokemonBase) or 0
+    local checksum = Memory.read_u16_le(pokemonBase + 0x06) or 0
+    if checksum == 0 then return nil end
+
+    local blockShift = bit.rshift(bit.band(pid, 0x3E000), 0x0D) % 24
+    local blockOrder = constants.BLOCK_SHUFFLE_ORDER[blockShift + 1]
+    local blockStart = pokemonBase + 0x08
+
+    seed = checksum
+
+    for i = 0, constants.BLOCK_TOTAL - 1 do
+        local currentBlockStart = blockStart + (constants.BLOCK_SIZE * i)
+        local currentBlockLetter = string.sub(blockOrder, i + 1, i + 1)
+
+        advanceRNG()
+
+        if currentBlockLetter == "B" then
+            local previousOffset = 0
+
+            local function readDecryptedWord(offset)
+                local diff = offset - previousOffset
+                if diff ~= 0 then
+                    advanceRNGByDifference(diff)
+                end
+                previousOffset = offset
+                local enc = Memory.read_u16_le(currentBlockStart + offset) or 0
+                local b = bytesFromWord(enc)
+                return combineBytes(b.byte1, b.byte2)
+            end
+
+            local m1 = readDecryptedWord(0x00)
+            local m2 = readDecryptedWord(0x02)
+            local m3 = readDecryptedWord(0x04)
+            local m4 = readDecryptedWord(0x06)
+
+            local w1 = readDecryptedWord(0x08)
+            local p1 = bit.band(w1, 0xFF)
+            local p2 = bit.band(bit.rshift(w1, 8), 0xFF)
+
+            local w2 = readDecryptedWord(0x0A)
+            local p3 = bit.band(w2, 0xFF)
+            local p4 = bit.band(bit.rshift(w2, 8), 0xFF)
+
+            return p1, p2, p3, p4, m1, m2, m3, m4
+        else
+            for _ = 2, constants.BLOCK_SIZE - 2, 2 do
+                advanceRNG()
+            end
+        end
+    end
+
+    return nil
+end
+
     function self.setCurrentBase(newBase)
         currentBase = newBase
     end

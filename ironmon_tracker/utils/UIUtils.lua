@@ -27,6 +27,13 @@ local function moveAndShowHoverFrame(hoverFrame, alignment, frameToAlignWith, dr
     hoverFrame.show()
 end
 
+function UIUtils.createAndDrawDamageTakenFrame(text, drawFunction, frameToAlignWith)
+    local hoverFrame = HoverFrameFactory.createDamageTakenHoverFrame(text or "")
+    local alignment = Graphics.HOVER_ALIGNMENT_TYPE.ALIGN_ABOVE
+    moveAndShowHoverFrame(hoverFrame, alignment, frameToAlignWith, drawFunction)
+    return hoverFrame
+end
+
 function UIUtils.createAndDrawHoverFrame(hoverParams, drawFunction, frameToAlignWith)
     local BGColorKey = hoverParams.BGColorKey
     local BGColorFillKey = hoverParams.BGColorFillKey

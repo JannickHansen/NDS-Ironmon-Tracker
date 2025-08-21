@@ -263,24 +263,53 @@ local function MainScreen(initialSettings, initialTracker, initialProgram)
     end
 
     local function onItemBagInfoHover(params)
-        if ui.frames.healFrame.isVisible() then
-            local items = params.items
-            local itemType = params.itemType
-            if items == nil or next(items) == nil then
-                local infoHoverParams = {
-                    BGColorKey = "Top box background color",
-                    BGColorFillKey = "Top box border color",
-                    text = "You currently do not have any " .. itemType:lower() .. " items.",
-                    textColorKey = "Top box text color",
-                    width = 114,
-                    alignment = Graphics.HOVER_ALIGNMENT_TYPE.ALIGN_ABOVE
-                }
-                onHoverInfo(infoHoverParams)
-            else
-                activeHoverFrame =
-                    UIUtils.createAndDrawItemHoverFrame(items, itemType, ui.frames.mainFrame, program.drawCurrentScreens)
-            end
+		if params and params.damageTakenText then
+        activeHoverFrame = UIUtils.createAndDrawDamageTakenFrame(params.damageTakenText, program.drawCurrentScreens, ui.frames.mainFrame)
+        	return
+    	end
+		if not ui.frames.healFrame.isVisible() then
+        	return
+    	end
+		if params and params.mode == "Combined" then
+        local healing = params.healingItems or {}
+        local status  = params.statusItems  or {}
+        local healingEmpty = next(healing) == nil
+        local statusEmpty  = next(status)  == nil
+        if healingEmpty and statusEmpty then
+            local infoHoverParams = {
+                BGColorKey   = "Top box background color",
+                BGColorFillKey = "Top box border color",
+                text         = "You currently do not have any healing or status items.",
+                textColorKey = "Top box text color",
+                width        = 164,
+                alignment    = Graphics.HOVER_ALIGNMENT_TYPE.ALIGN_ABOVE,
+            }
+            onHoverInfo(infoHoverParams)
+            return
         end
+        local combined = HoverFrameFactory.createCombinedItemBagHoverFrame(healing, status)
+        UIUtils.moveHoverFrameToMouse(combined, Graphics.HOVER_ALIGNMENT_TYPE.ALIGN_ABOVE, ui.frames.mainFrame)
+        activeHoverFrame = combined
+        program.drawCurrentScreens()
+        combined.show()
+        return
+    end
+    local items = params.items
+    local itemType = params.itemType
+    if items == nil or next(items) == nil then
+        local infoHoverParams = {
+            BGColorKey = "Top box background color",
+            BGColorFillKey = "Top box border color",
+            text = "You currently do not have any " .. itemType:lower() .. " items.",
+            textColorKey = "Top box text color",
+            width = 114,
+            alignment = Graphics.HOVER_ALIGNMENT_TYPE.ALIGN_ABOVE
+        }
+        onHoverInfo(infoHoverParams)
+    else
+        activeHoverFrame =
+            UIUtils.createAndDrawItemHoverFrame(items, itemType, ui.frames.mainFrame, program.drawCurrentScreens)
+    	end
     end
 
     function self.getInnerFramePosition()
@@ -800,13 +829,53 @@ local function MainScreen(initialSettings, initialTracker, initialProgram)
         ui.frames.tourneyPointsFrame.setVisibility(showTourneyPoints)
         local healingTotals = program.getHealingTotals()
         local statusTotals = program.getStatusTotals()
+		local lastDamageTaken = program.getLastDamageTaken()
+
         if healingTotals == nil then
             healingTotals = {healing = 0, numHeals = 0}
         end
-        hoverListeners.statusItemsHoverListener.setOnHoverParams({items = program.getStatusItems(), itemType = "Status"})
-        hoverListeners.healingItemsHoverListener.setOnHoverParams({items = program.getHealingItems(), itemType = "Healing"})
+        if settings.battle.SHOW_DAMAGE_TAKEN and program.isInBattle() and lastDamageTaken > 0 then
+			local moveName = program.getLastDamageMoveName()
+			local wasCrit = program.wasLastHitCrit()
+			local hoverText
+    		if moveName and moveName ~= "" and wasCrit then
+        		hoverText = tostring(moveName) .. " — " .. tostring(lastDamageTaken) .. " damage (Crit)"
+				--hoverText = "Wood Hammer — 888 damage (Crit)" -- longest possible string
+			elseif moveName and moveName ~= "" then
+				hoverText = tostring(moveName) .. " — " .. tostring(lastDamageTaken) .. " damage"
+			else
+        	hoverText = tostring(lastDamageTaken) .. " damage"
+    		end
+        	hoverListeners.statusItemsHoverListener.setOnHoverParams({damageTakenText = hoverText})
+			ui.controls.statusItemsLabel.setText("HP lost: " .. lastDamageTaken)
+		elseif settings.battle.SHOW_DAMAGE_TAKEN and program.isInBattle() and (lastDamageTaken == 0 or lastDamageTaken == nil) then
+			local moveName = program.getLastDamageMoveName()
+			local hoverText
+			if moveName and moveName ~= "" then
+				hoverText = tostring(moveName) .. " — " .. "No damage"
+			else
+				hoverText = "No move used."
+			end
+			hoverListeners.statusItemsHoverListener.setOnHoverParams({damageTakenText = hoverText})
+			ui.controls.statusItemsLabel.setText("HP lost: 0")
+        else
+            hoverListeners.statusItemsHoverListener.setOnHoverParams({items = program.getStatusItems(), itemType = "Status"})
+            ui.controls.statusItemsLabel.setText("Status items: " .. statusTotals)
+        end
+
+		if settings.battle.SHOW_DAMAGE_TAKEN and program.isInBattle() then
+			hoverListeners.healingItemsHoverListener.setOnHoverParams({
+				healingItems = program.getHealingItems() or {},
+				statusItems  = program.getStatusItems()  or {},
+				mode = "Combined"})
+		else
+			hoverListeners.healingItemsHoverListener.setOnHoverParams({
+				items    = program.getHealingItems() or {},
+				itemType = "Healing"
+			})
+		end
+        --hoverListeners.healingItemsHoverListener.setOnHoverParams({items = program.getHealingItems(), itemType = "Healing"})
         ui.controls.healsLabel.setText("Heals: " .. healingTotals.healing .. " (" .. healingTotals.numHeals .. ")")
-        ui.controls.statusItemsLabel.setText("Status items: " .. statusTotals)
         ui.frames.enemyNoteFrame.setVisibility(isEnemy or inPastRunView)
         ui.controls.noteIcon.setVisibility(not inPastRunView)
         ui.frames.healFrame.setVisibility(not isEnemy and not inPastRunView)

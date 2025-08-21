@@ -927,3 +927,168 @@ function HoverFrameFactory.createVanillaEncountersHoverFrame(areaName, encounter
     mainFrame.resize({width = 100, height = totalHeight})
     return mainFrame
 end
+
+function HoverFrameFactory.createDamageTakenHoverFrame(text)
+    local headerHeight, width = 18, 164
+    local mainFrame =
+        Frame(
+        Box(
+			{x = 0, y = 0},
+			{width = 0, height = 0},
+			nil,
+			nil,
+			false,
+			nil,
+			true
+		),
+        Layout(
+			Graphics.ALIGNMENT_TYPE.VERTICAL,
+			0,
+			{x = 0, y = 0}
+		),
+        nil
+    )
+    TextLabel(
+        Component(
+            mainFrame,
+            Box({x = 0, y = 0},
+			{width = width, height = headerHeight},
+			"Top box background color",
+			"Top box border color",
+			nil,
+			nil,
+			true)
+        ),
+        TextField("Damage Taken",
+			{x = 46, y = 2},
+			TextStyle(
+				11,
+				Graphics.FONT.DEFAULT_FONT_FAMILY,
+				"Top box text color",
+				"Top box background color"
+			)
+		)
+    )
+    local body = HoverFrameFactory.createHoverTextFrame(
+        "Top box background color",
+        "Top box border color",
+        text or "",
+        "Top box text color",
+        width,
+        mainFrame
+    )
+    mainFrame.resize({width = width, height = headerHeight + body.getSize().height})
+    return mainFrame
+end
+
+function HoverFrameFactory.createCombinedItemBagHoverFrame(healingItems, statusItems)
+    local frameWidth        = 122
+    local textHeaderHeight  = 18
+    local itemLabelHeight   = 11
+    local function countItems(items)
+        local c = 0
+        if items then
+            for _, _ in pairs(items) do c = c + 1 end
+        end
+        return c
+    end
+    local mainFrame =
+        Frame(
+            Box(
+				{x = 0, y = 0},
+				{width = frameWidth, height = 0},
+				nil,
+				nil,
+				nil,
+				nil
+			),
+            Layout(
+				Graphics.ALIGNMENT_TYPE.VERTICAL,
+				0,
+				{x = 0, y = 0}
+			),
+            nil
+        )
+    local totalHeight = 0
+
+    local function addSection(title, items, itemType, titleXPadding)
+        TextLabel(
+            Component(
+                mainFrame,
+                Box(
+					{x = 0, y = 0},
+					{width = frameWidth, height = textHeaderHeight},
+                    "Top box background color",
+					"Top box border color",
+					nil,
+					nil,
+					true
+				)
+            ),
+            TextField(
+                title,
+                {x = titleXPadding, y = 1},
+                TextStyle(
+					11,
+					Graphics.FONT.DEFAULT_FONT_FAMILY,
+					"Top box text color",
+					"Top box background color"
+				)
+            )
+        )
+        totalHeight = totalHeight + textHeaderHeight
+        local lines = countItems(items)
+        local holderHeight = lines * itemLabelHeight + 6
+        local holder =
+            Frame(
+                Box(
+					{x = 0, y = 0},
+					{width = frameWidth,
+					height = holderHeight},
+                    "Top box background color",
+					"Top box border color",
+					nil,
+					nil,
+					true
+				),
+                Layout(
+					Graphics.ALIGNMENT_TYPE.VERTICAL,
+					0,
+					{x = 0, y = 3}
+				),
+                mainFrame
+            )
+        readItemDataIntoFrame(items or {}, itemType, holder)
+        if lines == 0 then
+            TextLabel(
+                Component(
+					holder,
+					Box(
+						{x = 0, y = 0},
+						{width = frameWidth, height = itemLabelHeight},
+						nil,
+						nil
+					)
+				),
+                TextField(
+					"— None —",
+					{x = 3, y = 0},
+                    TextStyle(
+						Graphics.FONT.DEFAULT_FONT_SIZE,
+						Graphics.FONT.DEFAULT_FONT_FAMILY,
+						"Top box text color",
+						"Top box background color"
+					)
+				)
+            )
+            holderHeight = itemLabelHeight + 6
+            holder.resize({width = frameWidth, height = holderHeight})
+        end
+        totalHeight = totalHeight + holderHeight
+    end
+    addSection("Healing Items", healingItems or {}, "Healing", 27)
+    addSection("Status Items",  statusItems  or {}, "Status",  29)
+    mainFrame.resize({width = frameWidth, height = totalHeight})
+    return mainFrame
+end
+

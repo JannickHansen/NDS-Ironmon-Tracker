@@ -37,6 +37,7 @@ local function BattleOptionsScreen(initialSettings, initialTracker, initialProgr
             "SHOW_MOVE_EFFECTIVENESS",
             "CALCULATE_VARIABLE_DAMAGE",
             "SHOW_ACTUAL_ENEMY_PP",
+			"SHOW_DAMAGE_TAKEN",
             "SHOW_1ST_FIGHT_STATS_PLATINUM",
             "ENABLE_ENEMY_LOCKING",
             "DOUBLES_MODE"
