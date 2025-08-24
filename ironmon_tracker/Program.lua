@@ -1029,7 +1029,6 @@ local function Program(initialTracker, initialMemoryAddresses, initialGameInfo, 
     	local dr = damageRecords[pid]
     	if not dr then
 			showDamageConfig.OPEN_ON_RESET_INDEX = isBattleSceneOn() and 4 or 3
-			print(showDamageConfig.OPEN_ON_RESET_INDEX)
     	    dr = {
     	        curHP               = pokemon.curHP,
     	        maxHP               = pokemon.stats.HP,
