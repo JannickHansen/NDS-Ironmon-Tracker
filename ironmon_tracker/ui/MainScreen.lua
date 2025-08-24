@@ -830,11 +830,10 @@ local function MainScreen(initialSettings, initialTracker, initialProgram)
         local healingTotals = program.getHealingTotals()
         local statusTotals = program.getStatusTotals()
 		local lastDamageTaken = program.getLastDamageTaken()
-
         if healingTotals == nil then
             healingTotals = {healing = 0, numHeals = 0}
         end
-        if settings.battle.SHOW_DAMAGE_TAKEN and program.isInBattle() and lastDamageTaken > 0 then
+        if settings.battle.SHOW_DAMAGE_TAKEN and program.isInBattle() and not program.isMultiPlayerBattle() and lastDamageTaken > 0 then
 			local moveName = program.getLastDamageMoveName()
 			local wasCrit = program.wasLastHitCrit()
 			local hoverText
@@ -848,7 +847,7 @@ local function MainScreen(initialSettings, initialTracker, initialProgram)
     		end
         	hoverListeners.statusItemsHoverListener.setOnHoverParams({damageTakenText = hoverText})
 			ui.controls.statusItemsLabel.setText("HP lost: " .. lastDamageTaken)
-		elseif settings.battle.SHOW_DAMAGE_TAKEN and program.isInBattle() and (lastDamageTaken == 0 or lastDamageTaken == nil) then
+		elseif settings.battle.SHOW_DAMAGE_TAKEN and program.isInBattle() and not program.isMultiPlayerBattle() and (lastDamageTaken == 0 or lastDamageTaken == nil) then
 			local moveName = program.getLastDamageMoveName()
 			local hoverText
 			if moveName and moveName ~= "" then
@@ -862,19 +861,11 @@ local function MainScreen(initialSettings, initialTracker, initialProgram)
             hoverListeners.statusItemsHoverListener.setOnHoverParams({items = program.getStatusItems(), itemType = "Status"})
             ui.controls.statusItemsLabel.setText("Status items: " .. statusTotals)
         end
-
 		if settings.battle.SHOW_DAMAGE_TAKEN and program.isInBattle() then
-			hoverListeners.healingItemsHoverListener.setOnHoverParams({
-				healingItems = program.getHealingItems() or {},
-				statusItems  = program.getStatusItems()  or {},
-				mode = "Combined"})
+			hoverListeners.healingItemsHoverListener.setOnHoverParams({healingItems = program.getHealingItems() or {}, statusItems  = program.getStatusItems()  or {}, mode = "Combined"})
 		else
-			hoverListeners.healingItemsHoverListener.setOnHoverParams({
-				items    = program.getHealingItems() or {},
-				itemType = "Healing"
-			})
+			hoverListeners.healingItemsHoverListener.setOnHoverParams({items    = program.getHealingItems() or {}, itemType = "Healing"})
 		end
-        --hoverListeners.healingItemsHoverListener.setOnHoverParams({items = program.getHealingItems(), itemType = "Healing"})
         ui.controls.healsLabel.setText("Heals: " .. healingTotals.healing .. " (" .. healingTotals.numHeals .. ")")
         ui.frames.enemyNoteFrame.setVisibility(isEnemy or inPastRunView)
         ui.controls.noteIcon.setVisibility(not inPastRunView)

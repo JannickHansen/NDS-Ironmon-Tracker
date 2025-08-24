@@ -641,6 +641,23 @@ local function Program(initialTracker, initialMemoryAddresses, initialGameInfo, 
     	dr.wasCrit = dr.wasCrit or isCrit()
 	end
 
+	local function readMultiHit()
+    	local addr = memoryAddresses.multiHit
+    	if not addr then return 0, 0 end
+    	local val = Memory.read_u16_le(addr) or 0
+    	if val == 0 then return 0, 0 end
+    	local total = bit.rshift(val, 8)
+    	local left  = bit.band(val, 0xFF)
+    	return total, left
+	end
+
+	local function isBattleSceneOn()
+    	local addr = memoryAddresses.battleScene
+    	if not addr then return false end
+    	local v = Memory.read_u8(addr) or 0
+    	return bit.band(v, 0x80) == 0
+	end
+
 	local function resolveMoveName(m1, m2, m3, m4, slot)
     	local mid = ({ m1, m2, m3, m4 })[slot]
     	local entry = mid and MoveData.MOVES[(mid or 0) + 1]
@@ -662,6 +679,10 @@ local function Program(initialTracker, initialMemoryAddresses, initialGameInfo, 
 	    local curHP = readHP(curHPAddr)
 		local maxHP = readHP(maxHPAddr)
 		return curHP or 0, maxHP or 0, curHPAddr, maxHPAddr
+	end
+
+	local function currentHP()
+    	return select(1, readPlayerHP())
 	end
 
 	local function animFrameCounter()
@@ -775,38 +796,6 @@ local function Program(initialTracker, initialMemoryAddresses, initialGameInfo, 
   		return nil, nil
 	end
 
-	local function handleEnemyPPChange(dr, base, isDuringMultiTurn)
-	    if not base then return end
-	    local p1, p2, p3, p4, m1, m2, m3, m4 = pokemonDataReader.readPPFromBase(base)
-	    if not p1 then return end
-	    local raw = packPP(p1, p2, p3, p4)
-	    if dr.prevEnemyPPMemory == nil then
-	        dr.prevEnemyPPMemory = raw
-	        return
-	    end
-	    if raw ~= dr.prevEnemyPPMemory then
-	        if isDuringMultiTurn then
-	            dr.prevEnemyPPMemory = raw
-	        else
-	            local slot = pp_slot_drop(dr.prevEnemyPPMemory, raw)
-	            if slot then
-	                if animFrameCounter() > 0 then
-	                    dr.ppArmed = true
-	                    dr.prevEnemyPPMemory = raw
-	                    local name = resolveMoveName(m1, m2, m3, m4, slot)
-	                    setMoveNameIfKnown(dr, name)
-	                    dr.lastAnim, dr.resetCount, dr.resetCooldown, dr.zeroFlatFrames = nil, 0, 0, 0
-	                    dr.state = "anim"
-	                    flagCrit(dr)
-	                    dr.preWindowHP = select(1, readPlayerHP())
-	                else
-	                    dr.prevEnemyPPMemory = raw
-	                end
-	            end
-	        end
-	    end
-	end
-
 	local function handleEnemyPPChange(dr, base, opts)
     	if not base then return end
     	opts = opts or {}
@@ -847,33 +836,61 @@ local function Program(initialTracker, initialMemoryAddresses, initialGameInfo, 
     	end
 	end
 
+	local function earlyCloseIfEnabled(dr, pid)
+    	if showDamageConfig.EARLY_CLOSE_ON_DROP then
+        	flagCrit(dr)
+        	tryShowDamageInfo(pid)
+        	dr.state = "idle"
+    	end
+	end
+
+	local function beginMultiHitCollector(dr, pid, alreadyObserved)
+    	local total, _ = readMultiHit()
+    	if total <= 1 then return false end
+    	dr.mhCollect = {
+        	pid      = pid,
+        	expected = total,
+        	observed = alreadyObserved or 0,
+        	lastHP   = currentHP(),
+    	}
+    	return true
+	end
+
+	function self.isMultiPlayerBattle()
+    	if battleHandler and battleHandler.isMultiPlayerDouble then
+        	return true
+    	end
+    	return false
+	end
+
 	local function updateDamageState()
-    	if not battleHandler:isInBattle() then return end
-    	if not playerPokemon or playerPokemon.pid == 0 then return end
-    	local pid = playerPokemon.pid
-    	local dr = damageRecords[pid]
-    	if not dr then return end
-    	if dr.state == "idle" then
-        	local mt = readMultiTurnState()
-        	if isMultiTurnCharging(mt) then
-        	    if not dr.multiTurn then
-        	        dr.multiTurn = true
-        	        dr.multiTurnState = mt
-        	        local base = findActiveEnemyBase(memoryAddresses, gameInfo)
-        	        handleEnemyPPChange(dr, base, { resolveDuringCharge = true })
-        	    else
-        	        dr.multiTurnState = mt
-        	    end
-        	elseif isMultiTurnRelease(mt) or (mt == 0 and dr.multiTurn) then
-        	    if dr.multiTurn then
-        	        armAndEnterAnim(dr, pid)
-        	        dr.multiTurn = false
-        	        dr.multiTurnState = 0
-        	        return
-        	    end
-        	end
-        	local base = findActiveEnemyBase(memoryAddresses, gameInfo)
-        	handleEnemyPPChange(dr, base, { resolveDuringCharge = false })
+	    if not battleHandler:isInBattle() then return end
+	    if not playerPokemon or playerPokemon.pid == 0 then return end
+		if battleHandler and battleHandler:isMultiPlayerDouble() then return end
+	    local pid = playerPokemon.pid
+	    local dr = damageRecords[pid]
+	    if not dr then return end
+	    if dr.state == "idle" then
+	        local mt = readMultiTurnState()
+	        if isMultiTurnCharging(mt) then
+	            if not dr.multiTurn then
+	                dr.multiTurn = true
+	                dr.multiTurnState = mt
+	                local base = findActiveEnemyBase(memoryAddresses, gameInfo)
+	                handleEnemyPPChange(dr, base, { resolveDuringCharge = true })
+	            else
+	                dr.multiTurnState = mt
+	            end
+	        elseif isMultiTurnRelease(mt) or (mt == 0 and dr.multiTurn) then
+	            if dr.multiTurn then
+	                armAndEnterAnim(dr, pid)
+	                dr.multiTurn = false
+	                dr.multiTurnState = 0
+	                return
+	            end
+	        end
+	        local base = findActiveEnemyBase(memoryAddresses, gameInfo)
+	        handleEnemyPPChange(dr, base, { resolveDuringCharge = false })
 	    elseif dr.state == "anim" then
 	        flagCrit(dr)
 	        local anim = animFrameCounter()
@@ -905,26 +922,23 @@ local function Program(initialTracker, initialMemoryAddresses, initialGameInfo, 
 	        end
 	        if (dr.resetCooldown or 0) > 0 then
 	            dr.resetCooldown = dr.resetCooldown - 1
-			end
+	        end
 	        dr.lastAnim = anim
 	        if (dr.resetCount or 0) >= showDamageConfig.OPEN_ON_RESET_INDEX then
 	            dr.state = "hp"
 	            dr.ppArmed = false
 	            dr.hitsToProcess = {}
 	            dr.hpFramesLeft = showDamageConfig.HP_WINDOW_FRAMES
-
 	            if not dr.preWindowHP or dr.preWindowHP == 0 then
-	                dr.preWindowHP = select(1, readPlayerHP())
+	                dr.preWindowHP = currentHP()
 	            end
-	            local curHP = select(1, readPlayerHP())
+	            local curHP = currentHP()
 	            if dr.preWindowHP and curHP < dr.preWindowHP then
 	                table.insert(dr.hitsToProcess, dr.preWindowHP - curHP)
 	                flagCrit(dr)
 	                dr.lastHP = curHP
-	                if showDamageConfig.EARLY_CLOSE_ON_DROP then
-	                    flagCrit(dr)
-	                    tryShowDamageInfo(pid)
-	                    dr.state = "idle"
+	                if not beginMultiHitCollector(dr, pid, 1) then
+	                    earlyCloseIfEnabled(dr, pid)
 	                end
 	            else
 	                dr.lastHP = dr.preWindowHP
@@ -936,26 +950,54 @@ local function Program(initialTracker, initialMemoryAddresses, initialGameInfo, 
 	            dr.lastAnim, dr.resetCount, dr.resetCooldown = nil, 0, 0
 	        end
 	    elseif dr.state == "hp" then
-	        local curHP = select(1, readPlayerHP())
-	        if dr.lastHP and curHP < dr.lastHP then
-	            table.insert(dr.hitsToProcess, dr.lastHP - curHP)
-	            flagCrit(dr)
-	            if showDamageConfig.EARLY_CLOSE_ON_DROP then
-	                flagCrit(dr)
-	                tryShowDamageInfo(pid)
-	                dr.state = "idle"
-	            end
-	        end
-	        dr.lastHP = curHP
-	        if dr.state == "hp" then
-	            dr.hpFramesLeft = (dr.hpFramesLeft or 0) - 1
-	            if dr.hpFramesLeft <= 0 then
-	                flagCrit(dr)
-	                tryShowDamageInfo(pid)
-	                dr.state = "idle"
-	            end
-	        end
-	    end
+		    local curHP = currentHP()
+		    if dr.lastHP and curHP < dr.lastHP then
+		        local dmg = dr.lastHP - curHP
+		        table.insert(dr.hitsToProcess, dmg)
+		        flagCrit(dr)
+		        if not dr.mhCollect then
+		            if not beginMultiHitCollector(dr, pid, 1) then
+		                earlyCloseIfEnabled(dr, pid)
+		            end
+		        else
+		            dr.mhCollect.observed = (dr.mhCollect.observed or 0) + 1
+		            dr.mhCollect.lastHP   = curHP
+		        end
+		    else
+		        if dr.mhCollect then
+		            dr.mhCollect.lastHP = curHP
+		        end
+		    end
+		    dr.lastHP = curHP
+		    if dr.mhCollect and curHP == 0 then
+		        flagCrit(dr)
+		        tryShowDamageInfo(dr.mhCollect.pid)
+		        dr.state = "idle"
+		        dr.mhCollect = nil
+		        return
+		    end
+		    if dr.mhCollect then
+		        local t, left = readMultiHit()
+		        local observed = dr.mhCollect.observed or 0
+		        local expected = dr.mhCollect.expected or 0
+		        local doneByObserved = (expected > 0 and observed >= expected)
+		        local doneByCounter  = (t > 0 and left == 0)
+		        if doneByObserved or doneByCounter then
+		            flagCrit(dr)
+		            tryShowDamageInfo(dr.mhCollect.pid)
+		            dr.state = "idle"
+		            dr.mhCollect = nil
+		            return
+		        end
+		    else
+		        dr.hpFramesLeft = (dr.hpFramesLeft or 0) - 1
+		        if dr.hpFramesLeft <= 0 then
+		            flagCrit(dr)
+		            tryShowDamageInfo(pid)
+		            dr.state = "idle"
+		        end
+		    end
+		end
 	end
 
 	local function resetLastDamageTakenOnSwitch(dr, enemyPID)
@@ -974,15 +1016,20 @@ local function Program(initialTracker, initialMemoryAddresses, initialGameInfo, 
     	dr.state          		= "idle"
 		dr.multiTurn        	= false
 		dr.multiTurnState  		= 0
+		dr.multiHitTotal 		= nil
+        dr.multiHitLeft  		= nil
 	end
 
 	local function updateLastDamageInfo(pokemon)
     	pokemon = pokemon or playerPokemon
     	if not pokemon or pokemon.pokemonID == 0 or pokemon.pid == 0 then return end
     	if not battleHandler:isInBattle() then damageRecords = {}; return end
+		if battleHandler and battleHandler:isMultiPlayerDouble() then return end
     	local pid = pokemon.pid
     	local dr = damageRecords[pid]
     	if not dr then
+			showDamageConfig.OPEN_ON_RESET_INDEX = isBattleSceneOn() and 4 or 3
+			print(showDamageConfig.OPEN_ON_RESET_INDEX)
     	    dr = {
     	        curHP               = pokemon.curHP,
     	        maxHP               = pokemon.stats.HP,
@@ -991,16 +1038,13 @@ local function Program(initialTracker, initialMemoryAddresses, initialGameInfo, 
     	        displayHits         = {},
     	        prevEnemyPPTable    = nil,
     	        state               = "idle",
-
     	        lastAnim            = nil,
     	        prevEnemyPPMemory   = nil,
     	        resetCount          = 0,
     	        resetCooldown       = 0,
     	        zeroFlatFrames      = 0,
-
     	        lastHP              = nil,
     	        hpFramesLeft        = 0,
-
     	        preWindowHP         = nil,
     	        activeEnemyPID      = nil,
     	        armedMoveName       = nil,
@@ -1008,7 +1052,9 @@ local function Program(initialTracker, initialMemoryAddresses, initialGameInfo, 
     	        wasCrit             = false,
     	        displayCrit         = false,
 				multiTurn           = false,
-				multiTurnState      = 0
+				multiTurnState      = 0,
+				multiHitTotal 		= nil,
+        		multiHitLeft  		= nil
     	    }
     	    damageRecords[pid] = dr
     	end
@@ -1023,8 +1069,6 @@ local function Program(initialTracker, initialMemoryAddresses, initialGameInfo, 
     	    end
     	    resetLastDamageTakenOnSwitch(dr, currentEnemyPID)
     	end
-    	local name = resolveMoveName(m1, m2, m3, m4, slot)
-		setMoveNameIfKnown(dr, name)
     	dr.curHP = pokemon.curHP
     	dr.maxHP = pokemon.stats.HP
     	return
